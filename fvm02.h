@@ -1,5 +1,6 @@
-// fvm01.h // 2017/05/09 derived from fvm00.h samsuanchen@gmail.com
-           // 2019/01/08 updated for wbc_lcdtest.ino samsuanchen@gmail.com
+// fvm02.h
+// 2017/05/09 derived from fvm00.h samsuanchen@gmail.com
+// 2019/01/08 updated samsuanchen@gmail.com
 
 #ifndef _FVM_H_
 #define _FVM_H_
@@ -134,6 +135,7 @@ class FVM {
     boolean rHasItems(int);         // check if return stack has given number of items
     /////////////////////////////////////////////////////////////////////////////////////////////////////
     void    dotS();                 // show data stack
+    void    dotId(Word*);           // show word's ID and name
     void    showStacks();           // show return stack and data stack
     void    dot(int);               // print integer.
     void    dotR(int i,int n,char); // print i in n-char wide (fill leading char '0' or ' ').

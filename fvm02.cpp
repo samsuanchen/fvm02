@@ -88,6 +88,11 @@ void FVM::dotS(){
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 // FVM function 09 show return stack and data stack
+void	FVM::dotId( Word*w ){ // show word's id and name
+  PRINTF( "W%03x 0x%x \"%s\" ", w->id, *w->name, w->name+1 );
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+// FVM function 09 show return stack and data stack
 void	FVM::showStacks(){ // show rack and stack
   PRINT("\n< "), showTime();
   PRINTF("rStk %d [ ",rDepth()); // show depth
