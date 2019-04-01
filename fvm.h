@@ -1,19 +1,16 @@
-// fvm02.h
-// 2017/05/09 derived from fvm00.h samsuanchen@gmail.com
-// 2019/01/08 updated samsuanchen@gmail.com
-
+// fvm.h
 #ifndef _FVM_H_
 #define _FVM_H_
-
+#define fvm_logo "//  fvm - Forth Virtual Machine 1.0  20190325  //\n"
 #include <arduino.h>
-
+//////////////////////////////////////////////////////////////////////////////////////////////
+#define LED_BUILTIN 16
 // Serial IO ////////////////////////////////////////////////////////////////////////////////////////////
 #define PRINTF	  Serial.printf    // formated print
 #define PRINT     Serial.print     // print given object
 #define AVAILABLE Serial.available // check if available to read
 #define READ	  Serial.read      // read ascii code of available char
-#define WRITE	  Serial.write     // write char of given ascii code
-#define ABORT(ERR,ID,CODE,FORMAT,...) ERR=ID;Serial.printf("\nError %03d ",ID);Serial.printf(FORMAT,__VA_ARGS__);CODE()
+#define WRITE	  Serial.print     // print char of given ascii code
 // running state
 #define READING 0 // reading to terminal input buffer char by char.
 #define PARSING 1 // parsing and evaluating from script token by token.
@@ -25,84 +22,89 @@
 #define HIDEN       0x2000 // hidden word (searched but not seen)
 #define COMPO_HIDEN 0x6000 // hidden compile-only word
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define TIB_SIZE  2048            // default size of terminal input buffer to recieve characters
+#define TIB_SIZE  2048            // default size of terminal input buffer to read characters
+#define TOB_SIZE   256            // default size of terminal output buffer to print characters
 #define TMP_SIZE   256            // default size of temporary buffer to parse token or to convert integer to number string
-#define SL_LIMIT   254            // string length limit (number of characters as leading byte, 0 as trailing byte)
-#define SB_SIZE   4096            // default size of string buffer to keep all unique strings
-#define SB_LIMIT  (SB+SB_SIZE-1)  // string buffer limit
+#define SB_SIZE   2048            // default size of string buffer to keep all unique strings
 #define DS_SIZE     16            // default depth limit of data stack (number of 32-bit cells)
-#define DS_LIMIT  (DS+DS_SIZE-1)  // data stack limit
 #define CS_SIZE    256            // default number of 32-bit cells as compile space for word list of a forth colon definition
-#define CS_LIMIT  (CS+CS_SIZE-1)  // compile space limit
 #define RS_SIZE     16            // default depth limit of return stack (number of 32-bit cells)
-#define RS_LIMIT  (RS+RS_SIZE-1)  // return stack limit
 #define CONSOLE_WIDTH 80          // console output length limit (used by the forth word "words")
+#define SL_LIMIT   254            // string length limit (number of characters as leading byte, 0 as trailing byte)
+#define SB_LIMIT  (SB+SB_SIZE-1)  // string buffer limit
+#define DS_LIMIT  (DS+DS_SIZE-1)  // data stack limit
+#define CS_LIMIT  (CS+CS_SIZE-1)  // compile space limit
+#define RS_LIMIT  (RS+RS_SIZE-1)  // return stack limit
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-union P {                 // use same 32-bit cell to hold any one of the following:
-  int            con    ; // constant
-//int            var    ; // variable
-//int            val    ; // value
-  char         * mne    ; // name of a primitive word
-  struct Word ** wpl    ; // word list of forth colon definition
+union P {                 // use 32-bit cell to hold any one of the following:
+  int            con    ; // integer number
+  char         * mne    ; // primitive function name
+  struct Word ** wpl    ; // colon word list
 };
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-union X {                 // use same 32-bit cell to hold a floating number or an integer number
-  float          f      ; // a floating number
-  int            i      ; // an integer number
+union X {                 // use 32-bit cell to hold a floating number, an integer number, or an address
+  float          f      ; // floating number
+  int            i      ; // integer number
+  char*			 s		; // zStr
 };
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-typedef void (*FuncP)() ; // the forth function pointer type
+typedef void (*FuncP)() ; // forth word code pointer type
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 typedef struct Word {     // the forth word type
   struct Word * link    ; // link to previous word
   uint16_t      id      ; // word id
   uint16_t      flag    ; // IMMED 1 immediate, COMPO 2 compileOnly, HIDEN 3 hidden,
-  char        * name    ; // the address pointing to name of the forth word
-  FuncP         code    ; // pointing to the function code to execute
-  P				p       ; // parameter field
+  char        * name    ; // nStr (leading byte is name len) as the name of a forth word
+  FuncP         code    ; // function code to execute
+  P				p       ; // parameter field ( integer number, primitive function name, or colon word list
 };
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 typedef struct Voc {      // the forth vocaburary type
-  Word     * first      ; // point to the first forth word
-  Word     * predefined ; // point to the last predefined foth word
-  Word     * context    ; // point to the last forth word in voc
-  uint16_t   nWord      ;
-  uint16_t   lastId     ;
+  Word     * first      ; // the first forth word
+  Word     * predefined ; // the last foth word predefined
+  Word     * firstNew   ; // the first forth word not predefined
+  Word     * context    ; // the last forth word in dictionary
+  uint16_t   nWord      ; // number of all forth words in dictionary
+  uint16_t   lastId     ; // word ID of the last word added into dictionary
 };
 typedef struct Task {     // the forth task
 //----------------------------------------------------------------------------------------------------
-  char     * tib        ; // terminal input buffer to recieve characters
+  char     * tob        ; // terminal output buffer to print out message
+  char     * tib        ; // terminal input buffer to read forth script
   int      * DS         ; // data stack
   int      * RS         ; // return stack
-  Word    ** CS         ; // temporary word-list (colon definition) to compile
+  Word    ** CS         ; // temporary colon word-list
 //----------------------------------------------------------------------------------------------------
+  char     * oEnd       ; // end of terminal output buffer
+  char     * oLmt       ; // limit of terminal output buffer
   char     * iEnd       ; // end of terminal input buffer
-  char     * pBgn       ; // forth script (0 ended string) to interpret (parse and eval)
-  char     * pEnd       ; // point to forth script remain (0 ended string)
+  char     * pBgn       ; // forth script (zStr) to parse and eval
+  char     * pEnd       ; // point to forth script remain (zStr)
   char     * tokenAt    ; // token found in forth script
   char     * tokenEnd   ; // end of token
-  char     * hld        ; // addr to save digit while converting number to digits
+  char     * hld        ; // addr to save each digit while converting number to string
 //----------------------------------------------------------------------------------------------------
   Word     * context    ; // the last forth word defined in vocabulary.
   Word     * W          ; // running forth word.
   int        base=10    ; // number input/output coversion base
-  uint32_t   waitMsUntil; // wait until specified time in ms.
-  int      * DP         ; // point to top of data stack
+  uint32_t waitMsUntil=0; // wait until specified time in ms.
+  int      * DP         ; // top of data stack
 //----------------------------------------------------------------------------------------------------
-  Word    ** IP         ; // point to next cell in word-list (colon definition) at run time
-  int      * RP         ; // point to top of return stack
-  Word     * last       ; // the last forth word defined (may not in vocabulary yet)
-  Word    ** CP         ; // point to cell in temporary word-list (colon definition) at compile time
+  Word    ** IP         ; // point to next cell of colon word-list
+  int      * RP         ; // top of return stack
+  Word     * last       ; // the last forth word defined (may be not added into dictionary yet)
+  Word    ** CP         ; // point to next cell of temporary colon word-list at compile time
 //----------------------------------------------------------------------------------------------------
   int        state      ; // READING, PARSING, CMPLING, CALLING, LOADING
   int        tracing    ; // tracing depth of calling colon type forth word
-  int        error      ; // error code 
-  int        message=0  ; // no warning message
+  int        err        ; // error id
+  char     * errMsg		; // error message
+  int        warning 	; // give warning message
+  String   * html=0		; // web server page
+  
 };
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////
-class FVM;
+// class FVM;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 class FVM {
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -110,38 +112,62 @@ class FVM {
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
     FVM () {}
     virtual ~FVM () {}
-    Voc   * voc;                    // vocabulary of all forth words defined.
+    Voc   * voc;                    // dictionary of all forth words defined.
     /////////////////////////////////////////////////////////////////////////////////////////////////////
-    Task  * T;                      // working task.
-    Task  * createTask();           // create task of default sizes
-    Task  * createTask(int tib_size, int DS_size, int RS_size, int CS_size);
+    Task  * T;                      // running task.
+    Task  * createTask();           // createTask(TOB_SIZE,DS_SIZE,RS_SIZE,CS_SIZE);
+    Task  * createTask(int tob_size, int tib_size, int DS_size, int RS_size, int CS_size);
+    void	abort(int, char*);		// abort as given error id and message
     /////////////////////////////////////////////////////////////////////////////////////////////////////
     void    dClear();               // clear data stack
     void    dPush(int);             // push integer on top of data stack
     int	    dPop();                 // pop integer from top of data stack
-    int     dPick(int);             // push i-th item of data stack on top (0-th is the top)
-    void    dRoll(int);             // roll i-th item of data stack to top (0-th is the top)
-    void    dBackRoll(int);         // back roll top of data stack to i-th
-    int	    dDepth();               // current depth of data stack
+    int     dPick(int);             // push i-th item of data stack on top (0 as the top)
+    void    dRoll(int);             // roll i-th item of data stack to top (0 as the top)
+    void    dBackRoll(int);         // back roll top of data stack to i-th (0 as the top)
+    int	    dDepth();               // depth of data stack
     boolean dHasItems(int);         // check if data stack has given number of items
     boolean dHasSpace(int);         // check if data stack has space for given number of items
-    boolean dIsFull();              // check if data stack full
+    boolean dIsFull();              // check if data stack is full
     /////////////////////////////////////////////////////////////////////////////////////////////////////
     void    rClear();               // clear return stack
     void    rPush(int);             // push integer onto return stack
     int     rPop();                 // pop integer from return stack
-    int     rTop(int);              // top i-th integer of return stack
+    int     rPick(int);             // top i-th integer of return stack
     int     rDepth();               // current depth of return stack
     boolean rHasItems(int);         // check if return stack has given number of items
     /////////////////////////////////////////////////////////////////////////////////////////////////////
+    void    flush();                // flush out 																		  from terminal out buffer
+    void    print (char);           // print char   (flush out if  it's '\n' or buffer full)								to terminal out buffer
+    void    cr();                	// print '\n'	(flush out)																to terminal out buffer
+	void	qcr(int n);				// print '\n' if strlen(T->tob)>=tobLmt-n
+	void	qcr(){ qcr(0); };		// 
+    void    print (char*);          // print string	(flush out for each '\n' or buffer full)								to terminal out buffer
+    void    print (char*, int);     // print given number of characters														to terminal out buffer
+	void    print (int, int);		// print number of given base															to terminal out buffer
+	void    printZ(int, int);		// print hexadecimal number of given number of digits (with leading  zero, if needed)	to terminal out buffer
+	void    print (int);			// print decimal number																	to terminal out buffer
+	void    printHexZ(int, int);	// print hexadecimal number of given number of digits (with leading  zero, if needed)	to terminal out buffer
+	void    printHex (int, int);	// print hexadecimal number of given number of digits (with leading space, if needed)	to terminal out buffer
+	void    printHex (int);			// print hexadecimal number																to terminal out buffer
+	void    printHex (char*);		// print string address in hexadecimal													to terminal out buffer
+	void    printHex (Word*);		// print forth word address in hexadecimal												to terminal out buffer
+	void    printHex (Word**);      // print pointer of forth word address in hexadecimal									to terminal out buffer
     void    dotS();                 // show data stack
     void    dotId(Word*);           // show word's ID and name
     void    showStacks();           // show return stack and data stack
     void    dot(int);               // print integer.
     void    dotR(int i,int n,char); // print i in n-char wide (fill leading char '0' or ' ').
     /////////////////////////////////////////////////////////////////////////////////////////////////////
-    char	toDigit(int);           // convert integer into ascii code as a digit
-    char  * toDigits(int, int);     // convert integer into number string of given base.
+    char	toDigit(int i);         			// convert int i to char as a digit (where 0 <= i < 36)
+	char  * toStr (int i, int b);				// convert int i to  base b str
+	char  * toStr (int i, int b, int n, char c);// convert int i to  base b str of at least n bytes with leading c if needed
+    char  * toDec (int i);						// convert int i to decimal str
+    char  * toDec (int i, int n); 				// convert int i to decimal str of of at least n bytes
+    char  * toDecZ(int i, int n); 				// convert int i to decimal str of at least n bytes
+    char  * toHex (int i);						// convert int i to		hex str.
+    char  * toHex (int i, int n);				// convert int i to		hex str of at least n bytes with leading ' ' if needed
+    char  * toHexZ(int i, int n);				// convert int i to 	hex str of at least n bytes with leading '0' if needed
     /////////////////////////////////////////////////////////////////////////////////////////////////////
     boolean isFloatingNumber(char*);// return 1 if given string is a valid floating number; return 0 otherwise.
     char  * hexPrefix(char*);       // return remain string if prefix 0x or $; return 0 otherwise.
@@ -153,10 +179,12 @@ class FVM {
     Word ** cpClone();              // make a copy of word list as the colon definition of new forth word.
     /////////////////////////////////////////////////////////////////////////////////////////////////////
     Word  * createWord(uint16_t flag, uint16_t id, char*name, FuncP code, int data);// create forth word
+    void    forgetWord(char*name);
 	Word  * newPrimitive(char*name, FuncP code, char*codeName);
     Word  * newPrimitive(char*,FuncP);// create forth primitive word of given name and given code.
-    Word  * newConstant(char*,int);// create forth constant word of given name and value.
-    bool    isWord(Word*);          // check if given forth word is in vocabulary then return 1; otherwise return 0.
+    Word  * newConstant(char*,int); // create forth constant word of given name and value.
+    Word  * newVariable(char*,int*);// create forth constant word of given name and value.
+    bool    isWord(Word*);          // if given object is a forth word in vocabulary, return 1, else 0.
     void    showWordType(Word*);    // show type of given foth word
     void    vocInit(Word*);         // link given forth word as the last word in vocabulary
     Word  * vocSearch(char*);       // search the forth word of given name in vocabulary
@@ -178,22 +206,22 @@ class FVM {
     void    showTime();             // show current time in format hh:mm:ss.nnn
     /////////////////////////////////////////////////////////////////////////////////////////////////////
     void    init(long);      		// setup baud rate to communicate via serial port
-    void    init(long, Word*);      // setup baud rate to communicate via serial port and word set
+    void    init(long, int);		// setup baud rate to communicate via serial port and cpu
     void    update();               // run FVM
     /////////////////////////////////////////////////////////////////////////////////////////////////////
-    void    setCalling();     	    // setup to execute colon definition
-    void    callingWrd();           // execute the word list of a colon definition word by word
-    void    ipPush();               // push working word and IP to return stack
-    void    ipPop();                // pop IP and working word from return stack
+    void    initCall();     	    // setup to call words from the word list of working colon type word
+    void    callPerWrd();           // call word by word from the word list of working colon type word
+    void    ipPush();               // push working colon type word and IP to return stack
+    void    ipPop();                // pop IP and working colon type word from return stack
     /////////////////////////////////////////////////////////////////////////////////////////////////////
-    void    eval(char*);            // evaluate given script
-    void    parsingTkn();           // parse and evaluate token one by one
-    char  * uniqueString(char*);    // create a unique string for given token
+    void    initEval(char*);        // evaluate given script
+    void    parsPerTkn();           // parse and evaluate next token in tib
+    char  * uniqueNStr(char*);      // create a unique NStr for given token
 	char  * parseToken(char);       // parse token by given delimiter (for example, ' ', '"', or ')')
-    void    evalToken(char*);	    // evalate token
+    void    evalToken(char*);	    // evalate given token
     /////////////////////////////////////////////////////////////////////////////////////////////////////
-    void    initTib();           // begining   of read input line to tib
-    void    readTibChar();           // read to tib char by char until '\r'
+    void    initRead();             // setup to read chars into tib
+    void    readPerChr();			// read char by char to tib until '\r'
 //----------------------------------------------------------------------------------------------------
 //  File    curDir;
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -203,9 +231,10 @@ class FVM {
           * w_ret, * w_doFor, * w_doNext, * w_doLit, * w_doStr, * w_doIf, * w_doElse, * w_doThen,
           * w_doBegin, * w_doAgain, * w_doUntil, * w_doWhile, * w_doRepeat, * w_compile, * redefined=0;
     int     needExtraCell[5]={ i_doLit, i_compile, i_doNext, i_zbran, i_bran };
-    char    tmp[TMP_SIZE];          // tmp buffer used in parseToken() and toDigits()
-    char  * tmpLimit=tmp+TMP_SIZE-1;//
-    int     hint=0; 				// hint message
+    char    tmp[TMP_SIZE];          // buffer used in parseToken() and toStr() 
+    char  * tmpLimit=tmp+TMP_SIZE-1;// address to hold the last '\0' of tmp
+    int     hint=1; 				// hint message
+    int		tobLmt=80;				// used if need to define ?cr
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
   private:
   ///////////////////////////////////////////////////////////////////////////////////////////////////////

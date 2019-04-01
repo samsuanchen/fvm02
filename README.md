@@ -1,2 +1,4 @@
-# fvm02
-virtual machine of 2 stacks
+# fvm -- the forth virtual machine F
+
+F.init( baud )
+F.eval( script )
